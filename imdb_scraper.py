@@ -21,6 +21,7 @@ import argparse
 import csv
 import gzip
 import json
+import ssl
 import sys
 import time
 import urllib.error
@@ -29,6 +30,22 @@ import urllib.request
 
 GRAPHQL_URL = "https://caching.graphql.imdb.com/"
 SUGGESTION_URL = "https://v3.sg.media-imdb.com/suggestion/x/{}.json"
+
+# O Python do python.org no macOS nao usa o keychain do sistema: sem isto todo
+# urlopen morre com CERTIFICATE_VERIFY_FAILED. O certifi resolve na hora.
+try:
+    import certifi
+
+    SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
+except ModuleNotFoundError:
+    SSL_CONTEXT = ssl.create_default_context()
+
+CERT_HELP = (
+    "Falha ao validar o certificado SSL do IMDb. Duas saidas:\n"
+    "  1) pip install certifi\n"
+    "  2) ou rode uma vez o instalador de certificados do seu Python:\n"
+    "     open '/Applications/Python 3.10/Install Certificates.command'"
+)
 
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
@@ -88,18 +105,21 @@ def _http_json(url: str, payload: dict | None = None, retries: int = 5) -> dict:
     for attempt in range(retries):
         try:
             req = urllib.request.Request(url, data=data, headers=headers)
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with urllib.request.urlopen(req, timeout=30, context=SSL_CONTEXT) as resp:
                 raw = resp.read()
                 if resp.headers.get("Content-Encoding") == "gzip":
                     raw = gzip.decompress(raw)
                 return json.loads(raw.decode("utf-8"))
         except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
             last_error = exc
-            # 4xx que nao seja rate-limit nao melhora com retry
+            # certificado quebrado nao melhora com retry: falha na hora
+            if isinstance(getattr(exc, "reason", None), ssl.SSLCertVerificationError):
+                raise SystemExit(CERT_HELP) from exc
+            # 4xx que nao seja rate-limit tambem nao melhora com retry
             if isinstance(exc, urllib.error.HTTPError) and exc.code not in (429, 500, 502, 503, 504):
                 break
             wait = 2**attempt
-            print(f"  ! tentativa {attempt + 1}/{retries} falhou ({exc}); aguardando {wait}s", file=sys.stderr)
+            print(f"  ! tentativa {attempt + 1}/{retries} falhou: {type(exc).__name__}; nova tentativa em {wait}s", file=sys.stderr)
             time.sleep(wait)
 
     raise RuntimeError(f"requisicao falhou apos {retries} tentativas: {last_error}")
