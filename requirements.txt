@@ -1,0 +1,18 @@
+# Dependencias do projeto.
+#
+# Python do python.org (ex: 3.10) — instala direto:
+#     pip install -r requirements.txt
+#
+# Python do Homebrew (3.13/3.14) — recusa install global (PEP 668), use venv.
+# O nome "venv" ja esta no .gitignore:
+#     python3 -m venv venv
+#     source venv/bin/activate
+#     pip install -r requirements.txt
+#
+# O scraper (imdb_scraper.py) roda so com a stdlib; o certifi entra porque o
+# Python do python.org no macOS nao usa o keychain do sistema e quebra todo
+# HTTPS com CERTIFICATE_VERIFY_FAILED.
+
+pandas>=2.0            # DataFrames: imdb_reviews_scraper.ipynb e analyzer.ipynb
+certifi>=2024.2.2      # CA bundle para o HTTPS do IMDb funcionar no macOS
+ipykernel>=6.29        # kernel Jupyter, necessario para rodar os .ipynb no VS Code
