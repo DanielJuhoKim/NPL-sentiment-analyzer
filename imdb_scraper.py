@@ -47,10 +47,21 @@ CERT_HELP = (
     "     open '/Applications/Python 3.10/Install Certificates.command'"
 )
 
-USER_AGENT = (
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36"
-)
+# Conjunto minimo, verificado por teste (3 rodadas por caso, com ids de filme
+# diferentes para nao pegar cache do endpoint):
+#   Content-Type       -> obrigatorio: sem ele o GraphQL responde 415
+#   Referer do imdb.com-> sozinho ja libera (de outro dominio da 403)
+#   x-imdb-client-name -> sozinho tambem libera; o valor nao e validado
+# Os dois ultimos sao redundantes entre si: qualquer um basta. Mantidos ambos
+# de proposito, para o caso de o IMDb apertar um dos caminhos.
+# Removidos por serem inertes: User-Agent, Origin, Accept, Accept-Language
+# (UA de navegador sozinho da 403; UA de curl + client-name da 200).
+HEADERS = {
+    "Content-Type": "application/json",
+    "Referer": "https://www.imdb.com/",
+    "x-imdb-client-name": "imdb-web-next",
+    "Accept-Encoding": "gzip",  # se a resposta vier comprimida, _http_json descomprime
+}
 
 REVIEWS_QUERY = """
 query TitleReviews($id: ID!, $first: Int!, $after: ID, $sort: ReviewsSortBy!, $order: SortOrder!) {
@@ -90,21 +101,10 @@ SORT_OPTIONS = (
 def _http_json(url: str, payload: dict | None = None, retries: int = 5) -> dict:
     """POST/GET com retry e backoff exponencial. Devolve o JSON decodificado."""
     data = json.dumps(payload).encode("utf-8") if payload is not None else None
-    headers = {
-        "User-Agent": USER_AGENT,
-        "Accept": "application/json",
-        "Accept-Encoding": "gzip",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Content-Type": "application/json",
-        "x-imdb-client-name": "imdb-web-next",
-        "Origin": "https://www.imdb.com",
-        "Referer": "https://www.imdb.com/",
-    }
-
     last_error: Exception | None = None
     for attempt in range(retries):
         try:
-            req = urllib.request.Request(url, data=data, headers=headers)
+            req = urllib.request.Request(url, data=data, headers=HEADERS)
             with urllib.request.urlopen(req, timeout=30, context=SSL_CONTEXT) as resp:
                 raw = resp.read()
                 if resp.headers.get("Content-Encoding") == "gzip":
