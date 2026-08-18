@@ -16,3 +16,7 @@
 pandas>=2.0            # DataFrames: imdb_reviews_scraper.ipynb e analyzer.ipynb
 certifi>=2024.2.2      # CA bundle para o HTTPS do IMDb funcionar no macOS
 ipykernel>=6.29        # kernel Jupyter, necessario para rodar os .ipynb no VS Code
+nltk>=3.8              # stemmer de Porter no analyzer_anew.ipynb (sem download de corpus)
+numpy>=1.24            # arrays e media ponderada das valencias
+matplotlib>=3.7        # as tres figuras de analyzer_anew.ipynb
+scipy>=1.10            # exigido pelo pandas para corr(method="spearman")
